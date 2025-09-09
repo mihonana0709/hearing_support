@@ -111,10 +111,10 @@ st.write("マイク音声をリアルタイムで増幅・調整し、イヤホ�
 st.markdown("### 🔊 音声調整")
 gain_slider = st.slider(
     "全体音量（ゲイン）",
-    min_value=1.0,
-    max_value=10.0,
+    min_value=0.1,
+    max_value=20.0,
     value=3.0,
-    step=0.5,
+    step=0.1,
     help="マイクで拾った音を増幅するレベルを調整します。"
 )
 
@@ -136,20 +136,6 @@ high_freq_boost_slider = st.slider(
     help="高音域（2kHz〜8kHz）の音量を調整します。聴力に合わせて上げると聞き取りやすくなります。"
 )
 
-st.markdown("---")
-st.markdown("### 📊 リアルタイム音量レベル")
-
-while not st.session_state.volume_queue.empty():
-    st.session_state.volume_history.append(st.session_state.volume_queue.get())
-    if len(st.session_state.volume_history) > 100:
-        st.session_state.volume_history.pop(0)
-
-if "webrtc_ctx" in st.session_state and st.session_state.webrtc_ctx.state.playing:
-    st.line_chart(st.session_state.volume_history)
-else:
-    st.info("マイク入力を待機中です...")
-
-
 # webrtc_ctxの初期化を try-except で囲む
 try:
     processor = WebRtcAudioProcessor(st.session_state.audio_queue)
@@ -169,23 +155,39 @@ except Exception as e:
     st.stop()
 
 
-# ストリームの状態表示
-status_placeholder = st.empty()
-if webrtc_ctx.state.playing:
-    status_placeholder.info("🎧 音声増幅中...")
-    if st.session_state.processing_thread is None or not st.session_state.processing_thread.is_alive():
-        st.session_state.processing_thread = AudioProcessingThread(
-            st.session_state.audio_queue, 
-            st.session_state.volume_queue,
-            gain_slider,
-            low_freq_boost_slider,
-            high_freq_boost_slider
-        )
-        st.session_state.processing_thread.start()
-elif not webrtc_ctx.state.playing and st.session_state.processing_thread is not None:
-    st.session_state.processing_thread.stop()
-    st.session_state.processing_thread.join()
-    st.session_state.processing_thread = None
-    status_placeholder.info("🛑 停止中")
+# START/STOPボタンとステータス表示を中央に配置
+col1, col2, col3 = st.columns([1, 2, 1])
+
+with col2:
+    status_placeholder = st.empty()
+    if webrtc_ctx.state.playing:
+        status_placeholder.info("🎧 音声増幅中...")
+        if st.session_state.processing_thread is None or not st.session_state.processing_thread.is_alive():
+            st.session_state.processing_thread = AudioProcessingThread(
+                st.session_state.audio_queue, 
+                st.session_state.volume_queue,
+                gain_slider,
+                low_freq_boost_slider,
+                high_freq_boost_slider
+            )
+            st.session_state.processing_thread.start()
+    elif not webrtc_ctx.state.playing and st.session_state.processing_thread is not None:
+        st.session_state.processing_thread.stop()
+        st.session_state.processing_thread.join()
+        st.session_state.processing_thread = None
+        status_placeholder.info("🛑 停止中")
+    else:
+        status_placeholder.info("🛑 停止中")
+
+st.markdown("---")
+st.markdown("### 📊 リアルタイム音量レベル")
+
+while not st.session_state.volume_queue.empty():
+    st.session_state.volume_history.append(st.session_state.volume_queue.get())
+    if len(st.session_state.volume_history) > 100:
+        st.session_state.volume_history.pop(0)
+
+if "webrtc_ctx" in st.session_state and st.session_state.webrtc_ctx.state.playing:
+    st.line_chart(st.session_state.volume_history)
 else:
-    status_placeholder.info("🛑 停止中")
+    st.info("マイク入力を待機中です...")
